@@ -372,3 +372,85 @@ func GenerateRSAKey(bits int) (PrivateKey, error) {
 	})
 	return p, nil
 }
+
+func LoadECPublicKeyFromPEM(pem_block []byte) (PublicKey, error) {
+	if len(pem_block) == 0 {
+		return nil, errors.New("empty pem block")
+
+	}
+	bio := C.BIO_new_mem_buf(unsafe.Pointer(&pem_block[0]),
+		C.int(len(pem_block)))
+	if bio == nil {
+		return nil, errors.New("failed creating bio")
+
+	}
+	defer C.BIO_free(bio)
+
+	rsakey := C.PEM_read_bio_EC_PUBKEY(bio, nil, nil, nil)
+	if rsakey == nil {
+		return nil, errors.New("failed reading rsa key")
+
+	}
+	defer C.EC_KEY_free(rsakey)
+
+	// convert to PKEY
+	key := C.EVP_PKEY_new()
+	if key == nil {
+		return nil, errors.New("failed converting to evp_pkey")
+
+	}
+	if C.EVP_PKEY_set1_EC_KEY(key, (*C.struct_ec_key_st)(rsakey)) != 1 {
+		C.EVP_PKEY_free(key)
+		return nil, errors.New("failed converting to evp_pkey")
+
+	}
+
+	p := &pKey{key: key}
+	runtime.SetFinalizer(p, func(p *pKey) {
+		C.EVP_PKEY_free(p.key)
+
+	})
+	return p, nil
+}
+
+func LoadECPrivateKeyFromPEM(pem_block []byte) (PrivateKey, error) {
+	if len(pem_block) == 0 {
+		return nil, errors.New("empty pem block")
+
+	}
+	bio := C.BIO_new_mem_buf(unsafe.Pointer(&pem_block[0]),
+		C.int(len(pem_block)))
+	if bio == nil {
+		return nil, errors.New("failed creating bio")
+
+	}
+	defer C.BIO_free(bio)
+
+	rsakey := C.PEM_read_bio_ECPrivateKey(bio, nil, nil, nil)
+	if rsakey == nil {
+		return nil, errors.New("failed reading rsa key")
+
+	}
+	//defer C.RSA_free(rsakey)
+	defer C.EC_KEY_free(rsakey)
+
+	// convert to PKEY
+	key := C.EVP_PKEY_new()
+	if key == nil {
+		return nil, errors.New("failed converting to evp_pkey")
+
+	}
+	if C.EVP_PKEY_set1_EC_KEY(key,
+		(*C.struct_ec_key_st)(rsakey)) != 1 {
+		C.EVP_PKEY_free(key)
+		return nil, errors.New("failed converting to evp_pkey")
+
+	}
+	p := &pKey{key: key}
+	runtime.SetFinalizer(p, func(p *pKey) {
+		C.EVP_PKEY_free(p.key)
+
+	})
+	return p, nil
+
+}
